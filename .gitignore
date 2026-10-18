@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+!logs/.gitkeep
+
+# Local data (но датасеты в data/import — коммитим)
+data/
+!data/import/
+!data/import/*.csv
+!data/import/*.json
+!data/import/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
+
+# ML caches / models
+.cache/
+.huggingface/
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
