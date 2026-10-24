@@ -19,7 +19,8 @@ WORKDIR /app
 
 COPY pyproject.toml poetry.lock ./
 
-RUN --mount=type=cache,target=${POETRY_CACHE_DIR} \
+RUN --mount=type=cache,target=/tmp/poetry_cache \
+    poetry lock && \
     poetry install --only main --no-root
 
 FROM python:3.12-slim AS runtime
