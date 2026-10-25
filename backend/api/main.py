@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -5,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from backend.api.routes import health
+# 1. ДОБАВЛЕНО: импорт auth вместе с health
+from backend.api.routes import auth, health
 from backend.core.config import get_settings
 from backend.core.constants import LANGUAGES
 from backend.core.exceptions import RUNGException
@@ -66,7 +68,9 @@ async def rung_exception_handler(
     )
 
 
+# 2. ДОБАВЛЕНО: Подключение роутера auth сразу после health
 app.include_router(health.router)
+app.include_router(auth.router)
 
 
 @app.get("/")
