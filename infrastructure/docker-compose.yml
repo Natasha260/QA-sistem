@@ -1,0 +1,71 @@
+# infrastructure/docker-compose.yml
+#
+# Production compose file. No source-code bind-mounts — the code that
+# runs is the code baked into the image at build time.
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - rung_internal
+
+  app:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: 1
+    deploy:
+      resources:
+        limits:
+          memory: 10G
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 180s
+    # Give in-flight requests up to 300s to finish before SIGKILL.
+    # 300s matches httpx.AsyncClient(timeout=300.0), which is the
+    # upper bound for a single translation / agent pipeline call.
+    stop_grace_period: 300s
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    command:
+      - uvicorn
+      - backend.api.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+    networks:
+      - rung_internal
+
+volumes:
+  postgres_data:
+    name: rung_postgres_data
+
+networks:
+  rung_internal:
+    name: rung_internal
+    driver: bridge

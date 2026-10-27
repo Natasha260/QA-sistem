@@ -1,102 +1,88 @@
-# backend/api/main.py
-"""
-Точка входа FastAPI.
-
-Здесь создаётся приложение, подключаются middleware и роутеры.
-Uvicorn запускает объект app по пути backend.api.main:app.
-
-На этом этапе подключён только роутер health. Остальные роутеры
-(auth, translate, admin, hitl, eval) появятся на этапах 4, 9, 10, 13.
-"""
-
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
-from backend.api.routes import health
+# 1. ДОБАВЛЕНО: импорт auth вместе с health
+from backend.api.routes import auth, health
 from backend.core.config import get_settings
-from backend.utils.logging import setup_logging
+from backend.core.constants import LANGUAGES
+from backend.core.exceptions import RUNGException
+from backend.db.models import Base
+from backend.db.session import async_engine
 
-# Настраиваем логирование при импорте модуля. Это нужно для случаев,
-# когда приложение запускается через `uvicorn backend.api.main:app`
-# напрямую (в Docker), а не через `run.py`.
-setup_logging()
-
-logger = logging.getLogger(__name__)
 settings = get_settings()
 
+# Idempotent index migrations for deployments on an existing volume.
+_POST_CREATE_STATEMENTS = (
+    "CREATE INDEX IF NOT EXISTS ix_cache_eval_mode "
+    "ON translation_cache (eval_mode)",
+)
 
-# ============================================================================
-# Lifespan — код, выполняющийся при старте и остановке приложения
-# ============================================================================
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Управляет ресурсами приложения.
+    # 1. Инициализация БД при старте (до yield)
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        for statement in _POST_CREATE_STATEMENTS:
+            await conn.execute(text(statement))
 
-    Всё, что до yield — выполняется при старте.
-    Всё, что после yield — при остановке.
-    """
-    logger.info("=" * 60)
-    logger.info("%s starting...", settings.PROJECT_NAME)
-    logger.info("Debug mode: %s", settings.DEBUG)
-    logger.info("Translation engine: %s", settings.TRANSLATION_ENGINE)
-    logger.info("=" * 60)
-
-    # Здесь позже будет:
-    # - создание таблиц БД (Base.metadata.create_all) — этап 3
-    # - инициализация Qdrant-коллекции — этап 7
-    # - прогрев эмбеддингов — этап 7
-
+    # 2. Приложение работает (между yield и finally)
     yield
 
-    logger.info("=" * 60)
-    logger.info("%s stopped", settings.PROJECT_NAME)
-    logger.info("=" * 60)
+    # 3. Очистка ресурсов при остановке (в finally)
+    try:
+        await async_engine.dispose()
+    except Exception as e:
+        # В реальном проде лучше использовать logger, но пока выводим в stdout
+        print(f"Error disposing DB engine: {e}")
 
 
-# ============================================================================
-# Приложение
-# ============================================================================
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Мультиагентная платформа перевода с RAG",
-    version="0.1.0",
     debug=settings.DEBUG,
     lifespan=lifespan,
 )
 
-
-# ============================================================================
-# Middleware
-# ============================================================================
-# CORS — разрешает браузеру обращаться к API с другого домена.
-# В DEBUG-режиме разрешаем всё, в проде — только конкретные origin.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.DEBUG else [],
+    allow_origins=["*"] if settings.DEBUG else settings.cors_origins_list,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# ============================================================================
-# Роутеры
-# ============================================================================
+@app.exception_handler(RUNGException)
+async def rung_exception_handler(
+    request: Request,
+    exc: RUNGException,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.to_dict(),
+    )
+
+
+# 2. ДОБАВЛЕНО: Подключение роутера auth сразу после health
 app.include_router(health.router)
+app.include_router(auth.router)
 
 
-# ============================================================================
-# Базовые эндпоинты
-# ============================================================================
-@app.get("/", tags=["root"])
+@app.get("/")
 async def root():
-    """Корневой эндпоинт — простая проверка, что приложение работает."""
-    return {
-        "message": f"{settings.PROJECT_NAME} is running",
-        "docs": "/docs",
-        "healthz": "/healthz",
-    }
+    return {"message": f"{settings.PROJECT_NAME} is running!"}
+
+
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ok"}
+
+
+@app.get("/languages")
+async def languages():
+    return {"languages": LANGUAGES}
