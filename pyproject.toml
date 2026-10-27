@@ -3,19 +3,10 @@ name = "qa-sistem"
 version = "0.1.0"
 description = "QA-sistema"
 authors = ["Natasha <nabarabanova@kpfu.ru>"]
-# Если у вас нет папки с кодом, которую нужно упаковывать как библиотеку,
-# package-mode = false означает, что это просто набор скриптов/зависимостей.
-# Если вы хотите импортировать модули из папки 'backend', оставьте packages ниже.
 package-mode = false 
 
-# ВАЖНО: Если package-mode = false, секция packages обычно игнорируется или не нужна.
-# Но если вы хотите явно указать исходный код для разработки/линтеров, можно оставить.
-# Однако, чаще всего при package-mode=false пакеты не собираются.
-# Если вы хотите, чтобы Python видел папку backend, лучше убрать package-mode=false 
-# и настроить packages правильно, либо просто оставить как есть для установки зависимостей.
-
 [tool.poetry.dependencies]
-python = "^3.12"  # <-- Добавлено явно, так как requires-python было в [project]
+python = "^3.12"
 fastapi = ">=0.146.0,<0.147.0"
 uvicorn = {extras = ["standard"], version = ">=0.54.0,<0.55.0"}
 python-dotenv = ">=1.2.4,<2.0.0"
@@ -28,6 +19,12 @@ python-multipart = ">=0.0.32,<0.0.33"
 passlib = {extras = ["bcrypt"], version = ">=1.7.4,<2.0.0"}
 python-jose = {extras = ["cryptography"], version = ">=3.5.0,<4.0.0"}
 email-validator = ">=2.3.0,<3.0.0"
+
+# --- ДОБАВЛЕНО ПО ТРЕБОВАНИЮ ЧЕК-ЛИСТА ---
+bcrypt = "<5.0.0"
+pyjwt = "^2.14.0"
+# ------------------------------------------
+
 celery = ">=5.6.3,<6.0.0"
 redis = ">=8.1.0,<9.0.0"
 qdrant-client = ">=1.19.1,<2.0.0"
@@ -48,9 +45,9 @@ pytest = ">=8.3.0,<9.0.0"
 pytest-asyncio = ">=0.23.0,<1.0.0"
 pytest-cov = ">=7.1.0,<8.0.0"
 pytest-mock = ">=3.17.0,<4.0.0"
-black = ">=24.0.0,<25.0.0"  # Исправил версию на реалистичную (26.x еще нет)
-mypy = ">=1.0.0,<2.0.0"     # Исправил версию на реалистичную (2.x еще нет)
-ruff = ">=0.1.0,<1.0.0"     # Исправил версию на реалистичную
+black = ">=24.0.0,<25.0.0"
+mypy = ">=1.0.0,<2.0.0"
+ruff = ">=0.1.0,<1.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -60,7 +57,5 @@ build-backend = "poetry.core.masonry.api"
 asyncio_mode = "strict"
 pythonpath = ["."]
 
-# Если вам все же нужно указать пакеты (например, для mypy/black), 
-# используйте правильный синтаксис массива:
 [[tool.poetry.packages]]
 include = "backend"
