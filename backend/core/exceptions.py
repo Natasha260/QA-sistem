@@ -22,6 +22,11 @@ class TranslationError(RUNGException):
     pass
 
 
+class ModelNotLoadedError(Exception):
+    """Модель не была загружена до обращения к ней."""
+    pass
+
+
 class RetrievalError(RUNGException):
     """Ошибка при поиске по базе знаний (BM25 или Qdrant недоступны, индекс не построен)."""
     pass
