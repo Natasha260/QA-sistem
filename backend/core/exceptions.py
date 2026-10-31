@@ -13,35 +13,63 @@
 
 
 class RUNGException(Exception):
-    """Базовое исключение проекта. Все остальные наследуются от него."""
+    """Base exception for RUNG service."""
+    def __init__(self, message: str, status_code: int = 500, context: dict = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.context = context or {}
+
+
+class BaseAPIError(RUNGException):
+    """Base exception for API errors."""
     pass
 
 
-class TranslationError(RUNGException):
-    """Ошибка при выполнении перевода (LLM вернула пустой результат, timeout, и т.п.)."""
-    pass
+class ValidationError(BaseAPIError):
+    """Raised when request validation fails."""
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message, status_code=400, context=context)
+
+
+class AuthenticationError(BaseAPIError):
+    """Raised when authentication fails."""
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message, status_code=401, context=context)
+
+
+class PermissionDeniedError(BaseAPIError):
+    """Raised when user lacks permission."""
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message, status_code=403, context=context)
+
+
+class NotFoundError(BaseAPIError):
+    """Raised when resource is not found."""
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message, status_code=404, context=context)
 
 
 class ModelNotLoadedError(Exception):
-    """Модель не была загружена до обращения к ней."""
-    pass
+    """Raised when a model is required but not loaded."""
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message)
+        self.context = context or {}
 
 
-class RetrievalError(RUNGException):
-    """Ошибка при поиске по базе знаний (BM25 или Qdrant недоступны, индекс не построен)."""
-    pass
+class TranslationError(BaseAPIError):
+    """Raised when translation fails."""
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message, status_code=500, context=context)
 
 
-class ValidationError(RUNGException):
-    """Ошибка формальной проверки результата (минимальная длина, отсутствие термина и т.п.)."""
-    pass
+class RateLimitError(BaseAPIError):
+    """Raised when rate limit is exceeded."""
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message, status_code=429, context=context)
 
 
-class LLMError(RUNGException):
-    """Ошибка при обращении к LLM (Ollama или HuggingFace)."""
-    pass
-
-
-class ConfigurationError(RUNGException):
-    """Ошибка конфигурации (не задан HF_TOKEN, некорректный DATABASE_URL и т.п.)."""
-    pass
+class ExternalServiceError(BaseAPIError):
+    """Raised when external service fails."""
+    def __init__(self, message: str, service_name: str = None, context: dict = None):
+        super().__init__(message, status_code=502, context=context)
+        self.service_name = service_name

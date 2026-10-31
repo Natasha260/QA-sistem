@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     FALLBACK_TO_HF_ON_ERROR: bool = Field(
         default=True, validation_alias="FALLBACK_TO_HF_ON_ERROR"
     )
+    AGENT_ENGINE: str = "local"
 
     # ========================================================================
     # Database

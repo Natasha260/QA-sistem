@@ -60,3 +60,11 @@ RELATED_LANGUAGES: Dict[str, List[str]] = {
     "av": ["ru"],
     "udm": ["ru"],
 }
+
+
+# Порог, при котором критик считает перевод «прошедшим» проверку
+CRITIC_PASS_THRESHOLD = 0.8
+
+# Бюджеты итераций для адаптивного режима супервайзера
+ADAPTIVE_BUDGET_LOW = 2
+ADAPTIVE_BUDGET_MID = 4
