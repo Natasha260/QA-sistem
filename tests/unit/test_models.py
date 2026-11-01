@@ -2,11 +2,14 @@ import asyncio
 import uuid
 
 import pytest
-import pytest_asyncio  # <-- Добавлено
+import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from backend.db.models import GlossaryDB, TMDB, TranslationCache, UncertainExample, User, Base
+from backend.db.models import (
+    ChunkDB, DocumentDB, GlossaryDB, TranslationCache,
+    UncertainExample, User, VerifiedQADB, Base,
+)
 
 
 # ВАЖНО: Используем pytest_asyncio.fixture вместо pytest.fixture для async функций
@@ -16,13 +19,11 @@ async def engine():
     url = "sqlite+aiosqlite:///:memory:"
     eng = create_async_engine(url, echo=False, future=True)
 
-    # Создаём таблицы ДО yield, чтобы они были готовы к моменту использования
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     yield eng
-    
-    # Очистка после теста
+
     await eng.dispose()
 
 
@@ -35,24 +36,25 @@ async def session(engine):
 
 
 class TestTablesCreated:
-    # Эти тесты синхронные и НЕ используют фикстуру session — их можно оставить как есть
-    def test_all_five_tables(self):
+    def test_all_tables(self):
         expected = {
-            "glossaries",
-            "translation_memories",
+            "terminology",
+            "verified_qa",
+            "documents",
+            "chunks",
             "uncertain_examples",
-            "translation_cache",
+            "query_cache",
             "users",
         }
         assert set(Base.metadata.tables.keys()) == expected
 
-    def test_glossary_has_langs_index(self):
+    def test_terminology_has_subject_index(self):
         idx_names = {i.name for i in GlossaryDB.__table__.indexes}
         assert "ix_glossaries_langs" in idx_names
 
-    def test_tm_has_langs_index(self):
-        idx_names = {i.name for i in TMDB.__table__.indexes}
-        assert "ix_tm_langs" in idx_names
+    def test_verified_qa_has_subject_index(self):
+        idx_names = {i.name for i in VerifiedQADB.__table__.indexes}
+        assert "ix_verified_qa_langs" in idx_names
 
     def test_cache_has_eval_mode_index(self):
         idx_names = {i.name for i in TranslationCache.__table__.indexes}
@@ -79,54 +81,50 @@ class TestUserDefaults:
         assert found.is_active is True
 
 
-class TestTMDBRoundTrip:
+class TestDocumentAndChunks:
     @pytest.mark.asyncio
-    async def test_insert_and_select(self, session):
-        entry = TMDB(
-            id="en|ru|abcdef",
-            source_lang="en",
-            target_lang="ru",
-            source_text="hello",
-            target_text="привет",
-        )
-        session.add(entry)
+    async def test_document_with_chunks(self, session):
+        doc = DocumentDB(id="d1", title="Физика. Глава 1")
+        session.add(doc)
+        session.add_all([
+            ChunkDB(id="c1", document_id="d1", chunk_index=0, text="Механика…"),
+            ChunkDB(id="c2", document_id="d1", chunk_index=1, text="Термодинамика…"),
+        ])
         await session.commit()
 
         found = (await session.execute(
-            select(TMDB).where(TMDB.id == "en|ru|abcdef")
-        )).scalar_one()
-        assert found.source_text == "hello"
-        assert found.target_text == "привет"
+            select(ChunkDB).where(ChunkDB.document_id == "d1")
+            .order_by(ChunkDB.chunk_index)
+        )).scalars().all()
+        assert len(found) == 2
+        assert found[0].text == "Механика…"
 
+
+class TestVerifiedQA:
     @pytest.mark.asyncio
-    async def test_deterministic_id_is_primary_key(self, session):
-        """Two inserts with the same id — the second fails on PK conflict."""
-        first = TMDB(
-            id="en|ru|same",
-            source_lang="en", target_lang="ru",
-            source_text="hello", target_text="привет",
+    async def test_round_trip(self, session):
+        pair = VerifiedQADB(
+            id="qa|abc",
+            source_lang="ru", target_lang="ru",
+            source_text="Что такое ускорение?",
+            target_text="Быстрота изменения скорости.",
         )
-        session.add(first)
+        session.add(pair)
         await session.commit()
 
-        second = TMDB(
-            id="en|ru|same",
-            source_lang="en", target_lang="ru",
-            source_text="hi", target_text="здравствуй",
-        )
-        session.add(second)
-        with pytest.raises(Exception):  # IntegrityError
-            await session.commit()
-        await session.rollback()
+        found = (await session.execute(
+            select(VerifiedQADB).where(VerifiedQADB.id == "qa|abc")
+        )).scalar_one()
+        assert found.source_text == "Что такое ускорение?"
+        assert found.target_text == "Быстрота изменения скорости."
 
 
 class TestCacheSentinel:
     @pytest.mark.asyncio
     async def test_cache_defaults_to_unknown(self, session):
         c = TranslationCache(
-            source_text="hi",
-            source_lang="en", target_lang="ru",
-            translation="привет",
+            source_text="Что такое сила?",
+            translation="Мера взаимодействия тел.",
         )
         session.add(c)
         await session.commit()
@@ -142,11 +140,11 @@ class TestUncertainExample:
     @pytest.mark.asyncio
     async def test_pending_by_default(self, session):
         ex = UncertainExample(
-            source_text="hi", source_lang="en", target_lang="ru",
-            machine_translation="привет",
+            source_text="Что такое сила?",
+            machine_translation="Не знаю.",
             critic_score=5.0,
             validation_passed=False,
-        )  
+        )
         session.add(ex)
         await session.commit()
         await session.refresh(ex)

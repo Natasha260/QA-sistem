@@ -17,7 +17,17 @@ class RUNGException(Exception):
     def __init__(self, message: str, status_code: int = 500, context: dict = None):
         super().__init__(message)
         self.status_code = status_code
+        self.code = type(self).__name__
         self.context = context or {}
+
+    def to_dict(self) -> dict:
+        return {
+            "error": {
+                "code": self.code,
+                "message": str(self),
+                "context": self.context,
+            }
+        }
 
 
 class BaseAPIError(RUNGException):
@@ -73,3 +83,42 @@ class ExternalServiceError(BaseAPIError):
     def __init__(self, message: str, service_name: str = None, context: dict = None):
         super().__init__(message, status_code=502, context=context)
         self.service_name = service_name
+
+class EngineError(ExternalServiceError):
+    """Raised when a translation engine (Ollama / HuggingFace) fails."""
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message, service_name="engine", context=context)
+
+
+class EngineUnavailableError(EngineError):
+    """Raised when the requested engine is unavailable and fallback is disabled."""
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message, context=context)
+
+
+class UnknownEvalModeError(ValidationError):
+    """Raised when an unknown eval_mode is requested."""
+
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message, context=context)
+
+
+class EngineFallbackTriggeredError(ExternalServiceError):
+    """Raised when a strict engine request silently degraded to a fallback."""
+
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message, service_name="engine", context=context)
+
+
+class ImportFormatError(ValidationError):
+    """Raised when an uploaded file has an unsupported format."""
+
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message, context=context)
+
+
+class UncertainExampleNotFoundError(NotFoundError):
+    """Raised when a pending uncertain example is not found."""
+
+    def __init__(self, message: str, context: dict = None):
+        super().__init__(message, context=context)

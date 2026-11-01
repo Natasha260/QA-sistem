@@ -22,9 +22,9 @@ class Supervisor:
     })
 
     _EPHEMERAL_KEYS = frozenset({
-        "critic_adequacy",
-        "critic_fluency",
-        "critic_terminology",
+        "critic_relevance",
+        "critic_faithfulness",
+        "critic_completeness",
         "critic_score",
         "critic_reasoning",
         "critic_suggestions",

@@ -6,10 +6,10 @@ from backend.agents.critic import Critic
 
 class TestCriticJSONExtraction:
     def test_extract_json_spans_simple(self):
-        text = '{"adequacy": 5.0}'
+        text = '{"relevance": 5.0}'
         spans = Critic._extract_json_spans(text)
         assert len(spans) == 1
-        assert spans[0] == '{"adequacy": 5.0}'
+        assert spans[0] == '{"relevance": 5.0}'
 
     def test_extract_json_spans_nested(self):
         text = '{"outer": {"inner": 1}}'
@@ -36,28 +36,28 @@ class TestCriticJSONExtraction:
 class TestCriticParse:
     def test_parse_valid_json(self):
         critic = Critic(engine="ollama")
-        text = '{"adequacy": 5.0, "fluency": 5.0, "terminology": 5.0, "overall_score": 5.0}'
+        text = '{"relevance": 5.0, "faithfulness": 5.0, "completeness": 5.0, "overall_score": 5.0}'
         result = critic._parse_json_response(text)
         assert result['overall_score'] == 5.0
 
     def test_parse_fenced_json(self):
         critic = Critic(engine="ollama")
-        text = '```json\n{"adequacy": 5.0, "fluency": 5.0, "terminology": 5.0, "overall_score": 5.0}\n```'
+        text = '```json\n{"relevance": 5.0, "faithfulness": 5.0, "completeness": 5.0, "overall_score": 5.0}\n```'
         result = critic._parse_json_response(text)
         assert result['overall_score'] == 5.0
 
     def test_parse_removes_failed_key(self):
         critic = Critic(engine="ollama")
-        text = '{"adequacy": 5.0, "fluency": 5.0, "terminology": 5.0, "overall_score": 5.0, "failed": true}'
+        text = '{"relevance": 5.0, "faithfulness": 5.0, "completeness": 5.0, "overall_score": 5.0, "failed": true}'
         result = critic._parse_json_response(text)
         assert "failed" not in result
 
     def test_fallback_extraction(self):
         critic = Critic(engine="ollama")
-        text = 'SCORE: 7.5\nADEQUACY: 8.0'
+        text = 'SCORE: 7.5\nRELEVANCE: 8.0'
         result = critic._fallback_extract(text)
         assert result['overall_score'] == 7.5
-        assert result['adequacy'] == 8.0
+        assert result['relevance'] == 8.0
 
 
 class TestCriticFallback:
@@ -81,7 +81,7 @@ class TestCriticProcess:
         critic._call_llm = mock_call
         state = {
             'source_text': 'Hello', 'source_lang': 'en', 'target_lang': 'ru',
-            'translation': 'Привет', 'glossary_used': []
+            'answer': 'Ответ из контекста', 'chunks_used': []
         }
         result = await critic.process(state)
         assert result['critic_failed'] == True

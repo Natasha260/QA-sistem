@@ -7,19 +7,19 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 # 1. ДОБАВЛЕНО: импорт auth вместе с health
-from backend.api.routes import auth, health
+from backend.api.routes import admin, auth, health, hitl, query
 from backend.core.config import get_settings
-from backend.core.constants import LANGUAGES
 from backend.core.exceptions import RUNGException
 from backend.db.models import Base
 from backend.db.session import async_engine
+from backend.utils.http_client import close_ollama_clients
 
 settings = get_settings()
 
 # Idempotent index migrations for deployments on an existing volume.
 _POST_CREATE_STATEMENTS = (
     "CREATE INDEX IF NOT EXISTS ix_cache_eval_mode "
-    "ON translation_cache (eval_mode)",
+    "ON query_cache (eval_mode)",
 )
 
 
@@ -36,6 +36,7 @@ async def lifespan(app: FastAPI):
 
     # 3. Очистка ресурсов при остановке (в finally)
     try:
+        await close_ollama_clients()
         await async_engine.dispose()
     except Exception as e:
         # В реальном проде лучше использовать logger, но пока выводим в stdout
@@ -71,6 +72,9 @@ async def rung_exception_handler(
 # 2. ДОБАВЛЕНО: Подключение роутера auth сразу после health
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(query.router)
+app.include_router(admin.router)
+app.include_router(hitl.router)
 
 
 @app.get("/")
@@ -81,8 +85,3 @@ async def root():
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}
-
-
-@app.get("/languages")
-async def languages():
-    return {"languages": LANGUAGES}

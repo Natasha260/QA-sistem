@@ -27,7 +27,10 @@ class Settings(BaseSettings):
     # ========================================================================
     # Application
     # ========================================================================
-    PROJECT_NAME: str = Field(default="RUNG", validation_alias="PROJECT_NAME")
+    PROJECT_NAME: str = Field(
+        default="QA-система по университетским учебникам",
+        validation_alias="PROJECT_NAME",
+    )
     DEBUG: bool = Field(default=True, validation_alias="DEBUG")
     EVAL_MODE: str = Field(default="full", validation_alias="EVAL_MODE")
     ACTIVE_LEARNING_ENABLED: bool = Field(
@@ -35,14 +38,10 @@ class Settings(BaseSettings):
     )
 
     # ========================================================================
-    # Translation engine
+    # LLM engine (ответы генерирует только Ollama; критик/редактор могут
+    # использовать HuggingFace-модель, см. ниже)
     # ========================================================================
-    TRANSLATION_ENGINE: str = Field(
-        default="auto", validation_alias="TRANSLATION_ENGINE"
-    )
-    FALLBACK_TO_HF_ON_ERROR: bool = Field(
-        default=True, validation_alias="FALLBACK_TO_HF_ON_ERROR"
-    )
+    QA_ENGINE: str = Field(default="auto", validation_alias="QA_ENGINE")
     AGENT_ENGINE: str = "local"
 
     # ========================================================================
@@ -71,13 +70,9 @@ class Settings(BaseSettings):
     )
 
     # ========================================================================
-    # HuggingFace (запасной движок)
+    # HuggingFace (LLM для критика/редактора, опционально)
     # ========================================================================
     HF_TOKEN: Optional[str] = Field(default=None, validation_alias="HF_TOKEN")
-    HF_TRANSLATION_MODEL: str = Field(
-        default="facebook/nllb-200-distilled-600M",
-        validation_alias="HF_TRANSLATION_MODEL",
-    )
     HF_CRITIC_MODEL: Optional[str] = Field(
         default=None, validation_alias="HF_CRITIC_MODEL"
     )
@@ -94,7 +89,7 @@ class Settings(BaseSettings):
     QDRANT_HOST: str = Field(default="localhost", validation_alias="QDRANT_HOST")
     QDRANT_PORT: int = Field(default=6333, validation_alias="QDRANT_PORT")
     QDRANT_COLLECTION_NAME: str = Field(
-        default="tm_vectors", validation_alias="QDRANT_COLLECTION_NAME"
+        default="chunks", validation_alias="QDRANT_COLLECTION_NAME"
     )
     QDRANT_API_KEY: Optional[str] = Field(
         default=None, validation_alias="QDRANT_API_KEY"
@@ -169,14 +164,14 @@ class Settings(BaseSettings):
     # Validators
     # ========================================================================
 
-    @field_validator("TRANSLATION_ENGINE")
+    @field_validator("QA_ENGINE")
     @classmethod
-    def validate_translation_engine(cls, v: str) -> str:
-        """Проверяет, что TRANSLATION_ENGINE — одно из допустимых значений."""
-        allowed = {"auto", "ollama", "huggingface"}
+    def validate_qa_engine(cls, v: str) -> str:
+        """Проверяет, что QA_ENGINE — одно из допустимых значений."""
+        allowed = {"auto", "ollama"}
         if v not in allowed:
             raise ValueError(
-                f"TRANSLATION_ENGINE должен быть одним из {allowed}, получено: {v!r}"
+                f"QA_ENGINE должен быть одним из {allowed}, получено: {v!r}"
             )
         return v
 
@@ -184,7 +179,11 @@ class Settings(BaseSettings):
     @classmethod
     def validate_eval_mode(cls, v: str) -> str:
         """Проверяет, что EVAL_MODE — одно из допустимых значений."""
-        allowed = {"baseline", "glossary", "tm", "full"}
+        allowed = {
+            "baseline", "terminology", "chunks_bm25", "chunks_hybrid",
+            "agents_only", "chunks_hybrid_critic", "chunks_hybrid_editor",
+            "full",
+        }
         if v not in allowed:
             raise ValueError(
                 f"EVAL_MODE должен быть одним из {allowed}, получено: {v!r}"

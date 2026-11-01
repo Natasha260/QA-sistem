@@ -23,6 +23,103 @@ services:
     networks:
       - rung_internal
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - rung_internal
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+    healthcheck:
+      # Debian 13 image, no wget/curl available. Opening a TCP socket
+      # to the REST port is enough to confirm the process is up and
+      # listening. 127.0.0.1 forces IPv4 — ``localhost`` may resolve to
+      # ::1 inside the container, which Qdrant does not bind by default.
+      test: ["CMD", "bash", "-c", ":> /dev/tcp/127.0.0.1/6333"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - rung_internal
+
+  ollama:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      # Keep two models resident: the 14B critic + one worker model.
+      OLLAMA_MAX_LOADED_MODELS: 2
+      OLLAMA_NUM_PARALLEL: 2
+      # 30 minutes is enough for a burst of requests without reloading
+      # the 14B critic on every call.
+      OLLAMA_KEEP_ALIVE: 30m
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11435:11434"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 22G
+        reservations:
+          memory: 12G
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    networks:
+      - rung_internal
+
+  ollama-init:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      LLM_MODEL: ${LLM_MODEL}
+      CRITIC_MODEL: ${CRITIC_MODEL:-}
+      EDITOR_MODEL: ${EDITOR_MODEL:-}
+    volumes:
+      - ollama_data:/root/.ollama
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    # Folded scalar (>-): newlines become spaces, so CRLF line endings
+    # in the YAML file cannot break the shell script.
+    command: >-
+      echo 'Checking Ollama...' &&
+      until ollama list >/dev/null 2>&1; do echo 'Ollama is not ready yet...'; sleep 2; done &&
+      for MODEL in "$${LLM_MODEL}" "$${CRITIC_MODEL}" "$${EDITOR_MODEL}"; do
+        if [ -n "$${MODEL}" ]; then
+          echo "Checking model: $${MODEL}";
+          if ollama list | grep -q "^$${MODEL}"; then
+            echo "Model $${MODEL} already exists";
+          else
+            echo "Pulling model: $${MODEL}";
+            ollama pull "$${MODEL}";
+          fi;
+        fi;
+      done &&
+      echo 'Ollama initialization completed'
+    restart: "no"
+    networks:
+      - rung_internal
+
   app:
     build:
       context: ..
@@ -50,6 +147,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
     restart: unless-stopped
     command:
       - uvicorn
@@ -64,8 +167,95 @@ services:
 volumes:
   postgres_data:
     name: rung_postgres_data
+  redis_data:
+    name: rung_redis_data
+  qdrant_storage:
+    name: rung_qdrant_storage
+  ollama_data:
+    name: rung_ollama_data
 
 networks:
   rung_internal:
     name: rung_internal
     driver: bridge
+
+  worker:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile
+    healthcheck:
+      disable: true
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: 1
+    deploy:
+      resources:
+        limits:
+          memory: 10G
+    stop_grace_period: 300s
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+    command:
+      - celery
+      - -A
+      - backend.worker.celery_app
+      - worker
+      - --loglevel=info
+      - --concurrency=1
+    networks:
+      - rung_internal
+
+  beat:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile
+    healthcheck:
+      disable: true
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: 1
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+    command:
+      - celery
+      - -A
+      - backend.worker.celery_app
+      - beat
+      - --loglevel=info
+    networks:
+      - rung_internal
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      app:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - rung_internal

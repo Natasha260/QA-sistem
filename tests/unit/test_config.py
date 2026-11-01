@@ -25,19 +25,23 @@ class TestSettingsDefaults:
 
     def test_project_name_default(self):
         s = make_settings()
-        assert s.PROJECT_NAME == "RUNG"
+        assert s.PROJECT_NAME == "QA-система по университетским учебникам"
 
     def test_debug_default(self):
         s = make_settings()
         assert isinstance(s.DEBUG, bool)
 
-    def test_translation_engine_default(self):
+    def test_qa_engine_default(self):
         s = make_settings()
-        assert s.TRANSLATION_ENGINE in {"auto", "ollama", "huggingface"}
+        assert s.QA_ENGINE in {"auto", "ollama"}
 
     def test_eval_mode_default(self):
         s = make_settings()
-        assert s.EVAL_MODE in {"baseline", "glossary", "tm", "full"}
+        assert s.EVAL_MODE in {
+            "baseline", "terminology", "chunks_bm25", "chunks_hybrid",
+            "agents_only", "chunks_hybrid_critic", "chunks_hybrid_editor",
+            "full",
+        }
 
 
 class TestAsyncDatabaseUrl:
@@ -88,17 +92,17 @@ class TestEnsembleModels:
 class TestValidation:
     """Проверка валидаторов."""
 
-    def test_invalid_translation_engine_raises(self):
-        with pytest.raises(ValueError, match="TRANSLATION_ENGINE"):
-            make_settings(TRANSLATION_ENGINE="invalid-engine")
+    def test_invalid_qa_engine_raises(self):
+        with pytest.raises(ValueError, match="QA_ENGINE"):
+            make_settings(QA_ENGINE="invalid-engine")
 
     def test_invalid_eval_mode_raises(self):
         with pytest.raises(ValueError, match="EVAL_MODE"):
             make_settings(EVAL_MODE="invalid-mode")
 
-    def test_valid_translation_engine(self):
-        s = make_settings(TRANSLATION_ENGINE="ollama")
-        assert s.TRANSLATION_ENGINE == "ollama"
+    def test_valid_qa_engine(self):
+        s = make_settings(QA_ENGINE="ollama")
+        assert s.QA_ENGINE == "ollama"
 
     def test_valid_eval_mode(self):
         s = make_settings(EVAL_MODE="baseline")
