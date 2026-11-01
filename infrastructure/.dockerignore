@@ -1,0 +1,68 @@
+dockerignore
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+.venv/
+venv/
+env/
+ENV/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+*.egg-info/
+dist/
+build/
+
+# Tests — not needed in the runtime image
+tests/
+
+# IDE
+.vscode/
+.idea/
+
+# Docker — keep the Dockerfile itself in the build context.
+docker-compose*.yml
+compose*.yml
+
+# Do NOT ignore poetry.lock — the Dockerfile copies it for
+# reproducible installs.
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+/logs/
+*.log
+
+# Local data
+/data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ML caches / models
+/.cache/
+/.huggingface/
+/.cache/huggingface/
+
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
