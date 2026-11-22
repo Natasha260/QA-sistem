@@ -1,6 +1,6 @@
-# infrastructure/docker-compose.yml
+﻿# infrastructure/docker-compose.yml
 #
-# Production compose file. No source-code bind-mounts — the code that
+# Production compose file. No source-code bind-mounts вЂ” the code that
 # runs is the code baked into the image at build time.
 
 services:
@@ -46,7 +46,7 @@ services:
     healthcheck:
       # Debian 13 image, no wget/curl available. Opening a TCP socket
       # to the REST port is enough to confirm the process is up and
-      # listening. 127.0.0.1 forces IPv4 — ``localhost`` may resolve to
+      # listening. 127.0.0.1 forces IPv4 вЂ” ``localhost`` may resolve to
       # ::1 inside the container, which Qdrant does not bind by default.
       test: ["CMD", "bash", "-c", ":> /dev/tcp/127.0.0.1/6333"]
       interval: 10s
@@ -164,21 +164,6 @@ services:
     networks:
       - rung_internal
 
-volumes:
-  postgres_data:
-    name: rung_postgres_data
-  redis_data:
-    name: rung_redis_data
-  qdrant_storage:
-    name: rung_qdrant_storage
-  ollama_data:
-    name: rung_ollama_data
-
-networks:
-  rung_internal:
-    name: rung_internal
-    driver: bridge
-
   worker:
     build:
       context: ..
@@ -259,3 +244,18 @@ networks:
     restart: unless-stopped
     networks:
       - rung_internal
+
+volumes:
+  postgres_data:
+    name: rung_postgres_data
+  redis_data:
+    name: rung_redis_data
+  qdrant_storage:
+    name: rung_qdrant_storage
+  ollama_data:
+    name: rung_ollama_data
+
+networks:
+  rung_internal:
+    name: rung_internal
+    driver: bridge
