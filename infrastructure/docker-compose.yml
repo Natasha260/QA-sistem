@@ -74,9 +74,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 22G
+          memory: 6G
         reservations:
-          memory: 12G
+          memory: 3G
     healthcheck:
       test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
       interval: 10s
@@ -133,7 +133,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 10G
+          memory: 4G
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
       interval: 15s
@@ -177,7 +177,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 10G
+          memory: 4G
     stop_grace_period: 300s
     depends_on:
       db:
